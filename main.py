@@ -23,35 +23,62 @@ window = Window(800,1200,'gray')
 
 class Node:
     def __init__(self, start_x, start_y, diameter, color, speed):
-        # attributes
+        # size
         self.diameter = diameter
         self.radius = self.diameter / 2
+        # speed
         self.speed = speed
         self.diagonal_speed = sqrt(self.speed**2 / 2)
+        # color
         self.color = color
+        # center
+        self.center_x = start_x; self.center_y = start_y
+        # health
+        self.health = HealthBar(self)
+        self.alive = True
         # tkinter shape
         self.shape = window.game.create_oval(start_x-self.radius, start_y-self.radius,
         start_x+self.radius, start_y+self.radius, fill=self.color)
-        # updating variables
+        # position
         self.x1,self.y1,self.x2,self.y2 = window.game.coords(self.shape)
-        self.center_x = start_x; self.center_y = start_y
     def draw(self):
+        self.boundary_check()
+        self.update()
         window.game.coords(self.shape,self.x1,self.y1,self.x2,self.y2)
+        self.health.draw()
+    def boundary_check(self):
+        if self.center_y - self.radius < window.top_boundary:
+            self.center_y = window.top_boundary + self.radius
+        elif self.center_y + self.radius > window.height:
+            self.center_y = window.height - self.radius
+        if self.center_x - self.radius < window.left_boundary:
+            self.center_x = window.left_boundary + self.radius
+        elif self.center_x + self.radius > window.width:
+            self.center_x = window.width - self.radius
+    def update(self): # takes a center (x,y) and updates x1,x2,y1,x2
+        self.x1 = self.center_x - self.radius
+        self.x2 = self.center_x + self.radius
+        self.y1 = self.center_y - self.radius
+        self.y2 = self.center_y + self.radius
     def distance(self, other):
         return sqrt((self.center_x - other.center_x)**2 + (self.center_y - other.center_y)**2)
-    def boundary_check(self):
-        if self.y1 < window.top_boundary:
-            self.y1 = window.top_boundary
-            self.y2 = window.top_boundary + self.diameter
-        elif self.y2 > window.height:
-            self.y1 = window.height - self.diameter
-            self.y2 = window.height
-        if self.x1 < window.left_boundary:
-            self.x1 = window.left_boundary
-            self.x2 = window.left_boundary + self.diameter
-        elif self.x2 > window.width:
-            self.x1 = window.width - self.diameter
-            self.x2 = window.width
+
+
+class HealthBar:
+    def __init__(self, ent):
+        self.ent = ent
+        self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius
+        self.shape = window.game.create_rectangle(self.ent_x-self.ent_r, self.ent_y - self.ent_r - 7,
+                                    self.ent_x+self.ent_r, self.ent_y-self.ent_r - 3, fill='red')
+    def update_pos(self):
+        self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius   
+    def draw(self):
+        self.update_pos()
+        window.game.coords(self.shape,self.ent_x-self.ent_r, self.ent_y - self.ent_r - 7,
+                self.ent_x+self.ent_r, self.ent_y-self.ent_r - 3)
+
+
+
 
 class Player(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
@@ -61,45 +88,31 @@ class Player(Node):
         root.bind('<KeyPress>', self.key_push)
         root.bind('<KeyRelease>', self.key_release)
     def key_push(self,event): 
-        self.key_presses.add(event.keysym)
+        self.key_presses.add(event.keysym.lower())
     def key_release(self,event): 
-        self.key_presses.remove(event.keysym)
+        self.key_presses.remove(event.keysym.lower())
     def move(self):
+        if not self.alive: return
         if 'w' in self.key_presses and 'a' in self.key_presses:
-            self.y1 -= self.diagonal_speed
-            self.y2 -= self.diagonal_speed
-            self.x1 -= self.diagonal_speed
-            self.x2 -= self.diagonal_speed
+            self.center_y -= self.diagonal_speed
+            self.center_x -= self.diagonal_speed
         elif 'w' in self.key_presses and 'd' in self.key_presses:
-            self.y1 -= self.diagonal_speed
-            self.y2 -= self.diagonal_speed
-            self.x1 += self.diagonal_speed
-            self.x2 += self.diagonal_speed
+            self.center_y -= self.diagonal_speed
+            self.center_x += self.diagonal_speed
         elif 's' in self.key_presses and 'a' in self.key_presses:
-            self.y1 += self.diagonal_speed
-            self.y2 += self.diagonal_speed
-            self.x1 -= self.diagonal_speed
-            self.x2 -= self.diagonal_speed
+            self.center_y += self.diagonal_speed
+            self.center_x -= self.diagonal_speed
         elif 's' in self.key_presses and 'd' in self.key_presses:
-            self.y1 += self.diagonal_speed
-            self.y2 += self.diagonal_speed
-            self.x1 += self.diagonal_speed
-            self.x2 += self.diagonal_speed
+            self.center_y += self.diagonal_speed
+            self.center_x += self.diagonal_speed
         elif 'w' in self.key_presses:
-            self.y1 -= self.speed
-            self.y2 -= self.speed
+            self.center_y -= self.speed
         elif 's' in self.key_presses:
-            self.y1 += self.speed
-            self.y2 += self.speed
+            self.center_y += self.speed
         elif 'a' in self.key_presses:
-            self.x1 -= self.speed
-            self.x2 -= self.speed
+            self.center_x -= self.speed
         elif 'd' in self.key_presses:
-            self.x1 += self.speed
-            self.x2 += self.speed
-        self.boundary_check()
-        # update shape and set after
-        self.center_x = (self.x2+self.x1)/2; self.center_y = (self.y2 + self.y1) / 2
+            self.center_x += self.speed
         self.draw()
         root.after(10,self.move)
 
@@ -111,43 +124,34 @@ class Zombie(Node):
         super().__init__(start_x,start_y,diameter,color,speed)
         self.waypoint = None # (x,y) | None
     def move(self):
+        if not self.alive: return
         if self.distance(player) < 200:
             self.waypoint = None
             self.persue()
         else:
             self.patrol()
-        self.center_x = (self.x2+self.x1)/2; self.center_y = (self.y2 + self.y1) / 2
         self.draw()
         root.after(10,self.move)
     def patrol(self):
         if not self.waypoint: self.create_waypoint()
         if self.center_x > self.waypoint[0]:
-            self.x1 -= self.speed
-            self.x2 -= self.speed
+            self.center_x -= self.speed
         else:
-            self.x1 += self.speed
-            self.x2 += self.speed
+            self.center_x += self.speed
         if self.center_y > self.waypoint[1]:
-            self.y1 -= self.speed
-            self.y2 -= self.speed
+            self.center_y -= self.speed
         else:
-            self.y1 += self.speed
-            self.y2 += self.speed
-        self.boundary_check()
+            self.center_y += self.speed
         self.check_waypoint()
     def persue(self):
         if self.center_x > player.center_x:
-            self.x1 -= self.speed
-            self.x2 -= self.speed
+            self.center_x -= self.speed
         elif self.center_x < player.center_x:
-            self.x1 += self.speed
-            self.x2 += self.speed
+            self.center_x += self.speed
         if self.center_y > player.center_y:
-            self.y1 -= self.speed
-            self.y2 -= self.speed
+            self.center_y -= self.speed
         elif self.center_y < player.center_y:
-            self.y1 += self.speed
-            self.y2 += self.speed
+            self.center_y += self.speed
     def create_waypoint(self):
         new_x, new_y = randint(-200,200) + self.center_x, randint(-200,200) + self.center_y
         if new_x > window.width: new_x = window.width
@@ -156,7 +160,7 @@ class Zombie(Node):
         elif new_y < window.top_boundary: new_y = window.top_boundary
         self.waypoint = (new_x,new_y)
     def check_waypoint(self):
-        if abs(self.center_x - self.waypoint[0]) < 50 and abs(self.center_y - self.waypoint[1]) < 50:
+        if abs(self.center_x - self.waypoint[0]) <= self.radius and abs(self.center_y - self.waypoint[1]) <= self.radius:
             self.waypoint = None
 
 zombies = []
