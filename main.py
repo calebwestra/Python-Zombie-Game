@@ -67,6 +67,8 @@ class Node:
 class HealthBar:
     def __init__(self, ent):
         self.ent = ent
+        self.hp_max = 100
+        self.hp = self.hp_max
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius
         self.shape = window.game.create_rectangle(self.ent_x-self.ent_r, self.ent_y - self.ent_r - 7,
                                     self.ent_x+self.ent_r, self.ent_y-self.ent_r - 3, fill='red')
@@ -74,10 +76,14 @@ class HealthBar:
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius   
     def draw(self):
         self.update_pos()
-        window.game.coords(self.shape,self.ent_x-self.ent_r, self.ent_y - self.ent_r - 7,
-                self.ent_x+self.ent_r, self.ent_y-self.ent_r - 3)
-
-
+        ratio = self.hp / self.hp_max
+        lenOut = (ratio * self.ent_r)
+        if lenOut > 0:
+            window.game.coords(self.shape,self.ent_x-lenOut, self.ent_y - self.ent_r - 7,
+                    self.ent_x+lenOut, self.ent_y-self.ent_r - 3)
+        else:
+            self.ent.alive = False
+            window.game.delete(self.shape)
 
 
 class Player(Node):
@@ -115,7 +121,6 @@ class Player(Node):
             self.center_x += self.speed
         self.draw()
         root.after(10,self.move)
-
 player = Player(window.midwidth, window.midheight, 30, 'bisque', 2)
 
 
@@ -123,36 +128,45 @@ class Zombie(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
         super().__init__(start_x,start_y,diameter,color,speed)
         self.waypoint = None # (x,y) | None
+    def exist(self):
+        if not self.alive: 
+            window.game.delete(self.shape)
+            del zombies[self]
+            return
+        else:
+            self.move()
+        root.after(10,self.exist)
     def move(self):
-        if not self.alive: return
-        if self.distance(player) < 200:
+        if self.distance(player) <= 200:
             self.waypoint = None
             self.persue()
-        else:
+        elif self.waypoint == None:
             self.patrol()
+        if self.center_x > self.waypoint[0] and self.center_y > self.waypoint[1]:
+            self.center_x -= self.diagonal_speed
+            self.center_y -= self.diagonal_speed
+        elif self.center_x > self.waypoint[0] and self.center_y < self.waypoint[1]:
+            self.center_x -= self.diagonal_speed
+            self.center_y += self.diagonal_speed
+        elif self.center_x < self.waypoint[0] and self.center_y > self.waypoint[1]:
+            self.center_x += self.diagonal_speed
+            self.center_y -= self.diagonal_speed
+        elif self.center_x < self.waypoint[0] and self.center_y < self.waypoint[1]:
+            self.center_x += self.diagonal_speed
+            self.center_y += self.diagonal_speed
+        elif self.center_x > self.waypoint[0]:
+            self.center_x -= self.diagonal_speed
+        elif self.center_x < self.waypoint[0]:
+            self.center_x += self.diagonal_speed
+        elif self.center_y > self.waypoint[1]:
+            self.center_y -= self.diagonal_speed
+        elif self.center_y < self.waypoint[1]:
+            self.center_y += self.diagonal_speed
         self.draw()
-        root.after(10,self.move)
-    def patrol(self):
-        if not self.waypoint: self.create_waypoint()
-        if self.center_x > self.waypoint[0]:
-            self.center_x -= self.speed
-        else:
-            self.center_x += self.speed
-        if self.center_y > self.waypoint[1]:
-            self.center_y -= self.speed
-        else:
-            self.center_y += self.speed
         self.check_waypoint()
     def persue(self):
-        if self.center_x > player.center_x:
-            self.center_x -= self.speed
-        elif self.center_x < player.center_x:
-            self.center_x += self.speed
-        if self.center_y > player.center_y:
-            self.center_y -= self.speed
-        elif self.center_y < player.center_y:
-            self.center_y += self.speed
-    def create_waypoint(self):
+        self.waypoint = (player.center_x, player.center_y)
+    def patrol(self):
         new_x, new_y = randint(-200,200) + self.center_x, randint(-200,200) + self.center_y
         if new_x > window.width: new_x = window.width
         elif new_x < window.left_boundary: new_x = window.left_boundary
@@ -163,14 +177,13 @@ class Zombie(Node):
         if abs(self.center_x - self.waypoint[0]) <= self.radius and abs(self.center_y - self.waypoint[1]) <= self.radius:
             self.waypoint = None
 
-zombies = []
-zombie_moves = []
+
+zombies = {}
 def spawn(n_zombies):
     for i in range(n_zombies):
         x_start, y_start = randint(0, window.width), randint(0, window.height)
         zombie = Zombie(x_start,y_start,30,'green',.50)
-        zombies.append(zombie)
-        zombie_moves.append(root.after(10,zombie.move))
+        zombies[zombie] = root.after(10,zombie.exist)
 spawn(4)
 
 root.after(10,player.move)
