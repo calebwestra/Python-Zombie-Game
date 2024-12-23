@@ -1,8 +1,10 @@
-from tkinter import *
-from random import choice, randint
+from tkinter import Tk,Canvas
+from random import randint
 from math import sqrt
 
+
 root = Tk()
+
 
 class Window:
     def __init__(self,height,width,color):
@@ -18,8 +20,8 @@ class Window:
         # tkinter
         self.game = Canvas(root, height=self.height, width=self.width, bg=self.color)
         self.game.pack()
-
 window = Window(800,1200,'gray')
+
 
 class Node:
     def __init__(self, start_x, start_y, diameter, color, speed):
@@ -122,6 +124,7 @@ class Player(Node):
         self.draw()
         root.after(10,self.move)
 player = Player(window.midwidth, window.midheight, 30, 'bisque', 2)
+root.after(10,player.move)
 
 
 class Zombie(Node):
@@ -178,13 +181,14 @@ class Zombie(Node):
             self.waypoint = None
 
 
-zombies = {}
-def spawn(n_zombies):
-    for i in range(n_zombies):
-        x_start, y_start = randint(0, window.width), randint(0, window.height)
-        zombie = Zombie(x_start,y_start,30,'green',.50)
-        zombies[zombie] = root.after(10,zombie.exist)
-spawn(4)
+class Horde():
+    def __init__(self,level):
+        self.zombies = {}
+        for i in range(level * 3):
+            x_start, y_start = randint(0, window.width), randint(0, window.height)
+            zombie = Zombie(x_start,y_start,30,'green',.50)
+            self.zombies[zombie] = root.after(10,zombie.exist)
+h = Horde(1)
 
-root.after(10,player.move)
+
 root.mainloop()
