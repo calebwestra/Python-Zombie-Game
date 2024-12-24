@@ -20,7 +20,7 @@ class Window:
         # tkinter
         self.game = Canvas(root, height=self.height, width=self.width, bg=self.color)
         self.game.pack()
-        self.background = PhotoImage(file='zombie_city.png')
+        self.background = PhotoImage(file='./maps/zombie_city.png')
         self.game.create_image(0, 0, image=self.background, anchor='nw')
 window = Window(800,1280,'gray')
 
@@ -107,75 +107,93 @@ class Pistol:
         if not self.ent.alive:
             window.game.delete(self.shape)
             return
-        if self.ent_ld == 'WA':
+        elif self.ent_ld == 'w':
             window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
                                 self.ent_x + self.width/2, self.ent_y - self.ent_r)
-        elif self.ent_ld == 'WD':
-            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
-                                self.ent_x + self.width/2, self.ent_y - self.ent_r)
-        elif self.ent_ld == 'SA':
-            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
-                                self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
-        elif self.ent_ld == 'SD':
-            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
-                                self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
-        elif self.ent_ld == 'W':
-            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
-                                self.ent_x + self.width/2, self.ent_y - self.ent_r)
-        elif self.ent_ld == 'A':
+        elif self.ent_ld == 'a':
             window.game.coords(self.shape, self.ent_x - self.ent_r - self.length, self.ent_y + self.width/2, 
                                 self.ent_x - self.ent_r, self.ent_y - self.width/2)
-        elif self.ent_ld == 'S':
+        elif self.ent_ld == 's':
             window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
                                 self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
-        elif self.ent_ld == 'D':
+        elif self.ent_ld == 'd':
             window.game.coords(self.shape, self.ent_x + self.ent_r, self.ent_y + self.width/2, 
                                 self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2)
+    def shoot(self):
+        if self.ent_ld == 'w':
+            self.gunfire_img = PhotoImage(file='./assets/upfire.png')
+            self.gunfire = window.game.create_image(self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, image=self.gunfire_img, anchor='sw')
+            for zombie in h.zombies:
+                if zombie.center_y < (self.ent_y - self.ent_r - self.length) and (zombie.center_x - zombie.radius) <= self.ent_x <= (zombie.center_x + zombie.radius):
+                    zombie.health.hp -= self.dmg
+        elif self.ent_ld == 'a':
+            self.gunfire_img = PhotoImage(file='./assets/leftfire.png')
+            self.gunfire = window.game.create_image(self.ent_x - self.ent_r - self.length, self.ent_y + self.width/2, image=self.gunfire_img, anchor='se')
+            for zombie in h.zombies:
+                if zombie.center_x < (self.ent_x - self.ent_r - self.length) and (zombie.center_y - zombie.radius) <= self.ent_y <= (zombie.center_y + zombie.radius):
+                    zombie.health.hp -= self.dmg
+        elif self.ent_ld == 's':
+            self.gunfire_img = PhotoImage(file='./assets/downfire.png')
+            self.gunfire = window.game.create_image(self.ent_x - self.width/2, self.ent_y + self.ent_r + self.length, image=self.gunfire_img, anchor='nw')
+            for zombie in h.zombies:
+                if zombie.center_y > (self.ent_y + self.ent_r + self.length) and (zombie.center_x - zombie.radius) <= self.ent_x <= (zombie.center_x + zombie.radius):
+                    zombie.health.hp -= self.dmg
+        elif self.ent_ld == 'd':
+            self.gunfire_img = PhotoImage(file='./assets/rightfire.png')
+            self.gunfire = window.game.create_image(self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2, image=self.gunfire_img, anchor='nw')
+            for zombie in h.zombies:
+                if zombie.center_x > (self.ent_x + self.ent_r + self.length) and (zombie.center_y - zombie.radius) <= self.ent_y <= (zombie.center_y + zombie.radius):
+                    zombie.health.hp -= self.dmg
+        root.after(10, window.game.delete, self.gunfire)
 
 
 class Player(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
         super().__init__(start_x,start_y,diameter,color,speed)
         # async operations
-        self.look_direction = 'W'
+        self.look_direction = 'w'
         self.weapon = Pistol(self)
         self.key_presses = set()
         root.bind('<KeyPress>', self.key_push)
         root.bind('<KeyRelease>', self.key_release)
     def key_push(self,event): 
+        if event.char == ' ':
+            self.weapon.shoot()
+            return
         self.key_presses.add(event.keysym.lower())
     def key_release(self,event): 
+        if event.char == ' ': return
         self.key_presses.remove(event.keysym.lower())
     def move(self):
         if not self.alive: return
+        if 'w' in self.key_presses:
+            self.look_direction = 'w'
+        elif 'a' in self.key_presses:
+            self.look_direction = 'a'
+        elif 's' in self.key_presses:
+            self.look_direction = 's'
+        elif 'd' in self.key_presses:
+            self.look_direction = 'd'
         if 'w' in self.key_presses and 'a' in self.key_presses:
             self.center_y -= self.diagonal_speed
             self.center_x -= self.diagonal_speed
-            self.look_direction = 'WA'
         elif 'w' in self.key_presses and 'd' in self.key_presses:
             self.center_y -= self.diagonal_speed
             self.center_x += self.diagonal_speed
-            self.look_direction = 'WD'
         elif 's' in self.key_presses and 'a' in self.key_presses:
             self.center_y += self.diagonal_speed
             self.center_x -= self.diagonal_speed
-            self.look_direction = 'SA'
         elif 's' in self.key_presses and 'd' in self.key_presses:
             self.center_y += self.diagonal_speed
             self.center_x += self.diagonal_speed
-            self.look_direction = 'SD'
         elif 'w' in self.key_presses:
             self.center_y -= self.speed
-            self.look_direction = 'W'
         elif 's' in self.key_presses:
             self.center_y += self.speed
-            self.look_direction = 'S'
         elif 'a' in self.key_presses:
             self.center_x -= self.speed
-            self.look_direction = 'A'
         elif 'd' in self.key_presses:
             self.center_x += self.speed
-            self.look_direction = 'D'
         self.draw()
         root.after(10,self.move)
 player = Player(window.midwidth, window.midheight, 30, 'bisque', 2)
@@ -186,11 +204,12 @@ class Zombie(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
         super().__init__(start_x,start_y,diameter,color,speed)
         self.waypoint = None # (x,y) | None
+        self.dmg = 1
         self.weapon = False
     def exist(self):
         if not self.alive: 
             window.game.delete(self.shape)
-            del zombies[self]
+            h.zombies.remove(self)
             return
         else:
             self.move()
@@ -221,6 +240,8 @@ class Zombie(Node):
             self.center_y -= self.diagonal_speed
         elif self.center_y < self.waypoint[1]:
             self.center_y += self.diagonal_speed
+        if self.distance(player) <= (self.radius + player.radius):
+            player.health.hp -= self.dmg
         self.draw()
         self.check_waypoint()
     def persue(self):
@@ -239,12 +260,13 @@ class Zombie(Node):
 
 class Horde():
     def __init__(self,level):
-        self.zombies = {}
+        self.zombies = []
+        self.z_moves = []
         for i in range(level * 3):
             x_start, y_start = randint(0, window.width), randint(0, window.height)
             zombie = Zombie(x_start,y_start,30,'green',.50)
-            self.zombies[zombie] = root.after(10,zombie.exist)
+            self.zombies.append(zombie)
+            self.z_moves.append(root.after(10,zombie.exist))
 h = Horde(1)
-
 
 root.mainloop()
