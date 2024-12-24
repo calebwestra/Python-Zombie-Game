@@ -1,4 +1,4 @@
-from tkinter import Tk,Canvas
+from tkinter import Tk,Canvas,PhotoImage
 from random import randint
 from math import sqrt
 
@@ -20,7 +20,9 @@ class Window:
         # tkinter
         self.game = Canvas(root, height=self.height, width=self.width, bg=self.color)
         self.game.pack()
-window = Window(800,1200,'gray')
+        self.background = PhotoImage(file='zombie_city.png')
+        self.game.create_image(0, 0, image=self.background, anchor='nw')
+window = Window(800,1280,'gray')
 
 
 class Node:
@@ -48,6 +50,7 @@ class Node:
         self.update()
         window.game.coords(self.shape,self.x1,self.y1,self.x2,self.y2)
         self.health.draw()
+        if self.weapon != False: self.weapon.draw()
     def boundary_check(self):
         if self.center_y - self.radius < window.top_boundary:
             self.center_y = window.top_boundary + self.radius
@@ -88,10 +91,54 @@ class HealthBar:
             window.game.delete(self.shape)
 
 
+class Pistol:
+    def __init__(self, ent):
+        self.ent = ent
+        self.width = 8
+        self.length = 17
+        self.dmg = 35
+        self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius; self.ent_ld = self.ent.look_direction
+        self.shape = window.game.create_rectangle(self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
+                                            self.ent_x + self.width/2, self.ent_y - self.ent_r, fill='silver')
+    def update_pos(self):
+        self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius;  self.ent_ld = self.ent.look_direction
+    def draw(self):
+        self.update_pos()
+        if not self.ent.alive:
+            window.game.delete(self.shape)
+            return
+        if self.ent_ld == 'WA':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
+                                self.ent_x + self.width/2, self.ent_y - self.ent_r)
+        elif self.ent_ld == 'WD':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
+                                self.ent_x + self.width/2, self.ent_y - self.ent_r)
+        elif self.ent_ld == 'SA':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
+                                self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
+        elif self.ent_ld == 'SD':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
+                                self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
+        elif self.ent_ld == 'W':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
+                                self.ent_x + self.width/2, self.ent_y - self.ent_r)
+        elif self.ent_ld == 'A':
+            window.game.coords(self.shape, self.ent_x - self.ent_r - self.length, self.ent_y + self.width/2, 
+                                self.ent_x - self.ent_r, self.ent_y - self.width/2)
+        elif self.ent_ld == 'S':
+            window.game.coords(self.shape, self.ent_x - self.width/2, self.ent_y + self.ent_r, 
+                                self.ent_x + self.width/2, self.ent_y + self.ent_r + self.length)
+        elif self.ent_ld == 'D':
+            window.game.coords(self.shape, self.ent_x + self.ent_r, self.ent_y + self.width/2, 
+                                self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2)
+
+
 class Player(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
         super().__init__(start_x,start_y,diameter,color,speed)
         # async operations
+        self.look_direction = 'W'
+        self.weapon = Pistol(self)
         self.key_presses = set()
         root.bind('<KeyPress>', self.key_push)
         root.bind('<KeyRelease>', self.key_release)
@@ -104,23 +151,31 @@ class Player(Node):
         if 'w' in self.key_presses and 'a' in self.key_presses:
             self.center_y -= self.diagonal_speed
             self.center_x -= self.diagonal_speed
+            self.look_direction = 'WA'
         elif 'w' in self.key_presses and 'd' in self.key_presses:
             self.center_y -= self.diagonal_speed
             self.center_x += self.diagonal_speed
+            self.look_direction = 'WD'
         elif 's' in self.key_presses and 'a' in self.key_presses:
             self.center_y += self.diagonal_speed
             self.center_x -= self.diagonal_speed
+            self.look_direction = 'SA'
         elif 's' in self.key_presses and 'd' in self.key_presses:
             self.center_y += self.diagonal_speed
             self.center_x += self.diagonal_speed
+            self.look_direction = 'SD'
         elif 'w' in self.key_presses:
             self.center_y -= self.speed
+            self.look_direction = 'W'
         elif 's' in self.key_presses:
             self.center_y += self.speed
+            self.look_direction = 'S'
         elif 'a' in self.key_presses:
             self.center_x -= self.speed
+            self.look_direction = 'A'
         elif 'd' in self.key_presses:
             self.center_x += self.speed
+            self.look_direction = 'D'
         self.draw()
         root.after(10,self.move)
 player = Player(window.midwidth, window.midheight, 30, 'bisque', 2)
@@ -131,6 +186,7 @@ class Zombie(Node):
     def __init__(self, start_x, start_y, diameter, color, speed):
         super().__init__(start_x,start_y,diameter,color,speed)
         self.waypoint = None # (x,y) | None
+        self.weapon = False
     def exist(self):
         if not self.alive: 
             window.game.delete(self.shape)
