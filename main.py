@@ -11,67 +11,64 @@ class Window:
         # window size
         self.height = height
         self.width = width
-        self.midheight = self.height / 2
-        self.midwidth = self.width / 2
-        # boundaries to prevent nodes from going off screen
-        self.top_boundary = 2
-        self.left_boundary = 2
+        # the top and left edges of the canvas have a boundary of 2, which prevents nodes from going off screen
+        self.left_top_boundary = 2
         # canvas
         self.game = Canvas(root, height=self.height, width=self.width)
         self.game.pack()
         # map
-        self.background = PhotoImage(file='./maps/zombie_city.png')
-        self.game.create_image(0, 0, image=self.background, anchor='nw')
+        self.map = PhotoImage(file='./maps/zombie_city.png')
+        self.game.create_image(0, 0, image=self.map, anchor='nw')
 window = Window(800,1280)
 
 
 class Node:
-    def __init__(self, start_x, start_y, diameter, color, speed):
+    def __init__(self, start_x, start_y, radius, color, speed):
         # size
-        self.diameter = diameter
-        self.radius = self.diameter / 2
+        self.radius = radius
         # speed
         self.speed = speed
-        self.diagonal_speed = sqrt(self.speed**2 / 2)
+        # see appendix 1
+        self.diag_speed = sqrt(self.speed**2 / 2)
         # color
         self.color = color
         # center
-        self.center_x = start_x; self.center_y = start_y
+        self.center_x = start_x
+        self.center_y = start_y
         # health
         self.health = HealthBar(self)
         self.alive = True
         # tkinter shape initialization
         self.shape = window.game.create_oval(start_x-self.radius, start_y-self.radius,
-        start_x+self.radius, start_y+self.radius, fill=self.color)
+                            start_x+self.radius, start_y+self.radius, fill=self.color)
         # x1,y1,x2,x2 positions
-        self.x1,self.y1,self.x2,self.y2 = window.game.coords(self.shape)
-    def draw(self):
-        self.boundary_check()
-        self.update()
-        window.game.coords(self.shape,self.x1,self.y1,self.x2,self.y2)
-        self.health.draw()
-        if self.weapon != False: self.weapon.draw()
-    def boundary_check(self): 
-        if self.center_y - self.radius < window.top_boundary:
-            self.center_y = window.top_boundary + self.radius
+        self.x1, self.y1, self.x2, self.y2 = window.game.coords(self.shape)
+    def boundary_check(self): # adjusts center (x,y) when outside the window
+        if self.center_y - self.radius < window.left_top_boundary:
+            self.center_y = window.left_top_boundary + self.radius
         elif self.center_y + self.radius > window.height:
             self.center_y = window.height - self.radius
-        if self.center_x - self.radius < window.left_boundary:
-            self.center_x = window.left_boundary + self.radius
+        if self.center_x - self.radius < window.left_top_boundary:
+            self.center_x = window.left_top_boundary + self.radius
         elif self.center_x + self.radius > window.width:
             self.center_x = window.width - self.radius
-    def update(self): # takes a center (x,y) and updates x1,x2,y1,x2
+    def update(self): # calls boundary_check method / takes a center (x,y) and updates x1, x2, y1, x2
+        self.boundary_check()
         self.x1 = self.center_x - self.radius
         self.x2 = self.center_x + self.radius
         self.y1 = self.center_y - self.radius
         self.y2 = self.center_y + self.radius
+    def draw(self): # calls update method / moves the shape / calls healthbar draw method
+        self.update()
+        window.game.coords(self.shape, self.x1, self.y1, self.x2, self.y2)
+        self.health.draw()
     def distance(self, other): # returns distance from self's center to other node's center
         return sqrt((self.center_x - other.center_x)**2 + (self.center_y - other.center_y)**2)
 
 
 class HealthBar:
     def __init__(self, ent):
-        # the entity healthbar is associated with
+        # the entity that the healthbar is associated with
         self.ent = ent
         # name shortening for convienence
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius
@@ -159,8 +156,8 @@ class Pistol:
 
 
 class Player(Node):
-    def __init__(self, start_x, start_y, diameter, color, speed):
-        super().__init__(start_x,start_y,diameter,color,speed)
+    def __init__(self, start_x, start_y, radius, color, speed):
+        super().__init__(start_x,start_y,radius,color,speed)
         self.look_direction = 'w'
         self.weapon = Pistol(self)
         self.key_presses = set()
@@ -168,7 +165,7 @@ class Player(Node):
         root.bind('<KeyPress>', self.key_push)
         root.bind('<KeyRelease>', self.key_release)
     def key_push(self,event): 
-        if event.char == ' ':
+        if event.char == ' ' and self.alive == True:
             self.weapon.shoot()
             return
         self.key_presses.add(event.keysym.lower())
@@ -185,17 +182,17 @@ class Player(Node):
         elif 'd' in self.key_presses:
             self.look_direction = 'd'
         if 'w' in self.key_presses and 'a' in self.key_presses:
-            self.center_y -= self.diagonal_speed
-            self.center_x -= self.diagonal_speed
+            self.center_y -= self.diag_speed
+            self.center_x -= self.diag_speed
         elif 'w' in self.key_presses and 'd' in self.key_presses:
-            self.center_y -= self.diagonal_speed
-            self.center_x += self.diagonal_speed
+            self.center_y -= self.diag_speed
+            self.center_x += self.diag_speed
         elif 's' in self.key_presses and 'a' in self.key_presses:
-            self.center_y += self.diagonal_speed
-            self.center_x -= self.diagonal_speed
+            self.center_y += self.diag_speed
+            self.center_x -= self.diag_speed
         elif 's' in self.key_presses and 'd' in self.key_presses:
-            self.center_y += self.diagonal_speed
-            self.center_x += self.diagonal_speed
+            self.center_y += self.diag_speed
+            self.center_x += self.diag_speed
         elif 'w' in self.key_presses:
             self.center_y -= self.speed
         elif 's' in self.key_presses:
@@ -210,12 +207,15 @@ class Player(Node):
         if not self.alive: 
             return
         else: self.move()
-player = Player(window.midwidth, window.midheight, 30, 'bisque', 2)
+    def draw(self):
+        super().draw()
+        self.weapon.draw()
+player = Player(window.width/2, window.height/2, 15, 'bisque', 2)
 
 
 class Enemy(Node):
-    def __init__(self, start_x, start_y, diameter, color, speed, dmg):
-        super().__init__(start_x,start_y,diameter,color,speed)
+    def __init__(self, start_x, start_y, radius, color, speed, dmg):
+        super().__init__(start_x,start_y,radius,color,speed)
         self.waypoint = None # (x,y) | None
         self.dmg = dmg
         self.weapon = False
@@ -233,25 +233,25 @@ class Enemy(Node):
         elif self.waypoint == None:
             self.patrol()
         if self.center_x > self.waypoint[0] and self.center_y > self.waypoint[1]:
-            self.center_x -= self.diagonal_speed
-            self.center_y -= self.diagonal_speed
+            self.center_x -= self.diag_speed
+            self.center_y -= self.diag_speed
         elif self.center_x > self.waypoint[0] and self.center_y < self.waypoint[1]:
-            self.center_x -= self.diagonal_speed
-            self.center_y += self.diagonal_speed
+            self.center_x -= self.diag_speed
+            self.center_y += self.diag_speed
         elif self.center_x < self.waypoint[0] and self.center_y > self.waypoint[1]:
-            self.center_x += self.diagonal_speed
-            self.center_y -= self.diagonal_speed
+            self.center_x += self.diag_speed
+            self.center_y -= self.diag_speed
         elif self.center_x < self.waypoint[0] and self.center_y < self.waypoint[1]:
-            self.center_x += self.diagonal_speed
-            self.center_y += self.diagonal_speed
+            self.center_x += self.diag_speed
+            self.center_y += self.diag_speed
         elif self.center_x > self.waypoint[0]:
-            self.center_x -= self.diagonal_speed
+            self.center_x -= self.diag_speed
         elif self.center_x < self.waypoint[0]:
-            self.center_x += self.diagonal_speed
+            self.center_x += self.diag_speed
         elif self.center_y > self.waypoint[1]:
-            self.center_y -= self.diagonal_speed
+            self.center_y -= self.diag_speed
         elif self.center_y < self.waypoint[1]:
-            self.center_y += self.diagonal_speed
+            self.center_y += self.diag_speed
         if self.distance(player) <= (self.radius + player.radius):
             player.health.hp -= self.dmg
         self.draw()
@@ -262,9 +262,9 @@ class Enemy(Node):
     def patrol(self):
         new_x, new_y = randint(-200,200) + self.center_x, randint(-200,200) + self.center_y
         if new_x > window.width: new_x = window.width
-        elif new_x < window.left_boundary: new_x = window.left_boundary
+        elif new_x < window.left_top_boundary: new_x = window.left_top_boundary
         if new_y > window.height: new_y = window.height
-        elif new_y < window.top_boundary: new_y = window.top_boundary
+        elif new_y < window.left_top_boundary: new_y = window.left_top_boundary
         self.waypoint = (new_x,new_y)
     def check_waypoint(self):
         if abs(self.center_x - self.waypoint[0]) <= self.radius and abs(self.center_y - self.waypoint[1]) <= self.radius:
@@ -272,51 +272,55 @@ class Enemy(Node):
 
 
 class Zombie(Enemy):
-    def __init__(self, start_x, start_y, diameter, color, speed, dmg):
-        super().__init__(start_x, start_y, diameter, color, speed, dmg)
-        self.merged = False
-    def check_Zcollision(self):
-        for zombie in w.zombies:
-            if self.distance(zombie) <= self.radius and zombie != self and type(self) == Zombie and type(zombie) == Zombie:
-                return zombie
-        return False
-    def formHorde(self,other):
-        # horde attributes
-        if not self.merged:
-            start_x = (self.center_x + other.center_x) / 2
-            start_y = (self.center_y + other.center_y) / 2
-            area = (3.14 * (self.radius**2)) + (3.14 * (other.radius)**2)
-            diameter = sqrt((area / 3.14)) * 2
-            speed = self.speed * 1.25
-            damage = self.dmg + other.dmg
-            # # create horde
-            h = Horde(start_x, start_y, diameter, 'black', speed, damage)
-            w.addZombie(h)
-        # remove zombies
-        self.merged = True; self.alive = False; self.other=False
+    def __init__(self, start_x, start_y, radius, color, speed, dmg):
+        super().__init__(start_x, start_y, radius, color, speed, dmg)
+    def formHorde(self):
+        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
+            if self.distance(zombie) <= self.radius and zombie != self and type(zombie) == Zombie:
+                self.alive = False; zombie.alive = False
+                start_x = (self.center_x + zombie.center_x) / 2
+                start_y = (self.center_y + zombie.center_y) / 2
+                radius = (sqrt(2) * 15)
+                # create horde
+                h = Horde(start_x, start_y, radius, 'black', n_zombies=2)
+                w.addZombie(h)
     def move(self):
         super().move()
-        collision = self.check_Zcollision()
-        if collision:
-            collision.merged = True
-            self.formHorde(collision)
+        self.formHorde()
 
 
 class Horde(Enemy):
-    def __init__(self, start_x, start_y, diameter, color, speed, dmg):
-        super().__init__(start_x, start_y, diameter, color, speed, dmg)
-        self.zombies = 2
-        self.label = Label(root, text=f'{self.zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
+    def __init__(self, start_x, start_y, radius, color, n_zombies, speed=1, dmg=1):
+        super().__init__(start_x, start_y, radius, color, speed, dmg)
+        self.n_zombies = n_zombies
+        self.speed = 1 + (self.n_zombies-1) * .25
+        self.dmg = self.n_zombies * .5
+        self.n_zombies = n_zombies
+        self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
         self.label.place(x=self.center_x, y=self.center_y, anchor='center')
-    def absorb(self,zombie): # when horde collides with zombie
-        pass
-    def update(self): # updates horde
+    def absorb(self): 
+        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
+            if self.distance(zombie) <= self.radius and type(zombie) == Zombie and zombie.alive == True:
+                zombie.alive = False; self.alive = False
+                radius = (sqrt(self.n_zombies) * 15)
+                h = Horde(self.center_x, self.center_y, radius, 'black', n_zombies=self.n_zombies + 1)
+                w.addZombie(h)
+            elif self.distance(zombie) <= self.radius and type(zombie) == Horde and zombie != self:
+                self.alive = False; zombie.alive = False
+                start_x = (self.center_x + zombie.center_x) / 2
+                start_y = (self.center_y + zombie.center_y) / 2
+                radius =   sqrt(self.n_zombies + zombie.n_zombies) * 15
+                h = Horde(start_x, start_y, radius, 'black', n_zombies=self.n_zombies + zombie.n_zombies)
+    def move(self):
+        super().move()
+        self.absorb()
+    def update(self):
         super().update()
-        self.label.place(x=self.center_x, y=self.center_y, anchor='center')
-    def collide(self,horde): # when two hordes collide
-        pass
-    def bleed(self): # random chance for zombie to escape horde
-        pass
+        try:
+            self.label.destroy()
+            self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
+            self.label.place(x=self.center_x, y=self.center_y, anchor='center')
+        except: pass
 
 
 class Wave():
@@ -324,22 +328,21 @@ class Wave():
         self.zombies = set()
         for i in range(level * 3):
             x_start, y_start = randint(0, window.width), randint(0, window.height)
-            zombie = Zombie(x_start,y_start,30,'green',.75,1)
+            zombie = Zombie(x_start,y_start,15,'green',.75,.5)
             self.zombies.add(zombie)
     def addZombie(self,zombie):
         self.zombies.add(zombie)
     def deleteZombie(self,zombie):
         try:
             zombie.label.destroy()
+        except:
+            pass
         finally:
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(3)
+w = Wave(5)
 
-
-class Game():
-    pass
 
 
 root.mainloop()

@@ -1,0 +1,1 @@
+Error thrown when a horde, that has merged with another horde, absorbs a zombie
