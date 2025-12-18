@@ -227,7 +227,7 @@ class Enemy(Node):
         else:
             self.move()
     def move(self):
-        if self.distance(player) <= 200:
+        if self.distance(player) <= 200 and player.alive:
             self.waypoint = None
             self.persue()
         elif self.waypoint == None:
@@ -276,7 +276,7 @@ class Zombie(Enemy):
         super().__init__(start_x, start_y, radius, color, speed, dmg)
     def formHorde(self):
         for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
-            if self.distance(zombie) <= self.radius and zombie != self and type(zombie) == Zombie:
+            if self.distance(zombie) <= self.radius and zombie != self and type(zombie) == Zombie and zombie.alive and self.alive:
                 self.alive = False; zombie.alive = False
                 start_x = (self.center_x + zombie.center_x) / 2
                 start_y = (self.center_y + zombie.center_y) / 2
@@ -341,7 +341,7 @@ class Wave():
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(5)
+w = Wave(3)
 
 
 
