@@ -16,11 +16,25 @@ class Window:
         # canvas
         self.game = Canvas(root, height=self.height, width=self.width)
         self.game.pack()
-        # map
+        # map image
         self.map = PhotoImage(file='./maps/zombie_city.png')
         self.game.create_image(0, 0, image=self.map, anchor='nw')
+        # map boundaries
+        self.boundaries = []
+        self.danger_zones = []
+        with open('./maps/zombie_city.dat', "r") as file:
+            for line in file:
+                # print(line)
+                obj_type, x1, y2, x2, y1 = line.rstrip().split(' ')
+                # top_left_corner = (x1, y2)
+                # top_right_corner = (x2, y2)
+                # bottom_left_corner = (x1, y1)
+                # bottom_right_corner = (x2, y1)
+                x1, x2, y1, y2 = int(x1), int(x2), int(y1), int(y2)
+                obj = (x1, x2, y1, y2)
+                if obj_type == 'boundary': self.boundaries.append(obj)
+                elif obj_type == 'danger_zone': self.danger_zones.append(obj)
 window = Window(800,1280)
-
 
 class Node:
     def __init__(self, start_x, start_y, radius, color, speed):
@@ -64,7 +78,12 @@ class Node:
         self.health.draw()
     def distance(self, other): # returns distance from self's center to other node's center
         return sqrt((self.center_x - other.center_x)**2 + (self.center_y - other.center_y)**2)
-
+    def check_collision(self): # returns true if collision, otherwise, returns false
+        for boundary in window.boundaries:
+            x1, x2, y1, y2 = boundary
+            if self.center_x + self.radius > x1 and self.center_x - self.radius < x2 and self.center_y - self.radius < y1 and self.center_y + self.radius > y2:
+                return True
+        return False
 
 class HealthBar:
     def __init__(self, ent):
@@ -141,16 +160,16 @@ class Pistol:
                     break
     def drawGunfire(self):
         if self.ent_ld == 'w':
-            self.gunfire_img = PhotoImage(file='./assets/upfire.png')
+            self.gunfire_img = PhotoImage(file='./assets/images/upfire.png')
             self.gunfire = window.game.create_image(self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, image=self.gunfire_img, anchor='sw')
         elif self.ent_ld == 'a':
-            self.gunfire_img = PhotoImage(file='./assets/leftfire.png')
+            self.gunfire_img = PhotoImage(file='./assets/images/leftfire.png')
             self.gunfire = window.game.create_image(self.ent_x - self.ent_r - self.length, self.ent_y + self.width/2, image=self.gunfire_img, anchor='se')
         elif self.ent_ld == 's':
-            self.gunfire_img = PhotoImage(file='./assets/downfire.png')
+            self.gunfire_img = PhotoImage(file='./assets/images/downfire.png')
             self.gunfire = window.game.create_image(self.ent_x - self.width/2, self.ent_y + self.ent_r + self.length, image=self.gunfire_img, anchor='nw')
         elif self.ent_ld == 'd':
-            self.gunfire_img = PhotoImage(file='./assets/rightfire.png')
+            self.gunfire_img = PhotoImage(file='./assets/images/rightfire.png')
             self.gunfire = window.game.create_image(self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2, image=self.gunfire_img, anchor='nw')
         root.after(10, window.game.delete, self.gunfire)
 
@@ -173,6 +192,8 @@ class Player(Node):
         if event.char == ' ': return
         self.key_presses.remove(event.keysym.lower())
     def move(self):
+        self.check_danger()
+        original_pos = (self.center_x, self.center_y)
         if 'w' in self.key_presses:
             self.look_direction = 'w'
         elif 'a' in self.key_presses:
@@ -201,8 +222,9 @@ class Player(Node):
             self.center_x -= self.speed
         elif 'd' in self.key_presses:
             self.center_x += self.speed
+        if self.check_collision(): self.center_x, self.center_y = original_pos
         self.draw()
-        root.after(10,self.exist)
+        root.after(10, self.exist)
     def exist(self):
         if not self.alive: 
             return
@@ -210,7 +232,12 @@ class Player(Node):
     def draw(self):
         super().draw()
         self.weapon.draw()
-player = Player(window.width/2, window.height/2, 15, 'bisque', 2)
+    def check_danger(self):
+        for danger_zone in window.danger_zones:
+            x1, x2, y1, y2 = danger_zone
+            if self.center_x + self.radius > x1 and self.center_x - self.radius < x2 and self.center_y - self.radius < y1 and self.center_y + self.radius > y2:
+                self.health.hp -= 0.01
+player = Player(window.width/2, window.height/2, 15, 'bisque', 1)
 
 
 class Enemy(Node):
@@ -227,6 +254,7 @@ class Enemy(Node):
         else:
             self.move()
     def move(self):
+        original_pos = (self.center_x, self.center_y)
         if self.distance(player) <= 200 and player.alive:
             self.waypoint = None
             self.persue()
@@ -254,6 +282,7 @@ class Enemy(Node):
             self.center_y += self.diag_speed
         if self.distance(player) <= (self.radius + player.radius):
             player.health.hp -= self.dmg
+        if self.check_collision(): self.center_x, self.center_y = original_pos
         self.draw()
         self.check_waypoint()
         root.after(10, self.exist)
@@ -290,10 +319,10 @@ class Zombie(Enemy):
 
 
 class Horde(Enemy):
-    def __init__(self, start_x, start_y, radius, color, n_zombies, speed=1, dmg=1):
+    def __init__(self, start_x, start_y, radius, color, n_zombies, speed=0.5, dmg=1):
         super().__init__(start_x, start_y, radius, color, speed, dmg)
         self.n_zombies = n_zombies
-        self.speed = 1 + (self.n_zombies-1) * .25
+        self.speed = 0.5 + (self.n_zombies-1) * .2
         self.dmg = self.n_zombies * .5
         self.n_zombies = n_zombies
         self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
@@ -326,9 +355,9 @@ class Horde(Enemy):
 class Wave():
     def __init__(self,level):
         self.zombies = set()
-        for i in range(level * 3):
+        for _ in range(level * 3):
             x_start, y_start = randint(0, window.width), randint(0, window.height)
-            zombie = Zombie(x_start,y_start,15,'green',.75,.5)
+            zombie = Zombie(x_start,y_start, 15, 'green', .5, 1)
             self.zombies.add(zombie)
     def addZombie(self,zombie):
         self.zombies.add(zombie)
@@ -341,8 +370,7 @@ class Wave():
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(3)
-
+w = Wave(1)
 
 
 root.mainloop()
