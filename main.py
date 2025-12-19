@@ -1,6 +1,6 @@
 from tkinter import Tk, Canvas, PhotoImage, Label
-from random import randint
-from math import sqrt
+from random import randint, random
+from math import sqrt, floor
 
 
 root = Tk()
@@ -109,7 +109,6 @@ class HealthBar:
         else:
             self.ent.alive = False
             window.game.delete(self.shape)
-
 
 class Pistol:
     def __init__(self, ent):
@@ -325,16 +324,20 @@ class Horde(Enemy):
         self.speed = 0.5 + (self.n_zombies-1) * .2
         self.dmg = self.n_zombies * .5
         self.n_zombies = n_zombies
+        self.absorb_chance = 1
+        self.free_zombie_chance = 1
         self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
         self.label.place(x=self.center_x, y=self.center_y, anchor='center')
     def absorb(self): 
         for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
             if self.distance(zombie) <= self.radius and type(zombie) == Zombie and zombie.alive == True:
+                if randint(0, 100) > self.absorb_chance: return
                 zombie.alive = False; self.alive = False
                 radius = (sqrt(self.n_zombies) * 15)
                 h = Horde(self.center_x, self.center_y, radius, 'black', n_zombies=self.n_zombies + 1)
                 w.addZombie(h)
             elif self.distance(zombie) <= self.radius and type(zombie) == Horde and zombie != self:
+                if randint(0, 100) > self.absorb_chance: return
                 self.alive = False; zombie.alive = False
                 start_x = (self.center_x + zombie.center_x) / 2
                 start_y = (self.center_y + zombie.center_y) / 2
@@ -343,6 +346,7 @@ class Horde(Enemy):
     def move(self):
         super().move()
         self.absorb()
+        self.free_zombie()
     def update(self):
         super().update()
         try:
@@ -350,13 +354,25 @@ class Horde(Enemy):
             self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
             self.label.place(x=self.center_x, y=self.center_y, anchor='center')
         except: pass
-
+    def free_zombie(self):
+        if randint(0, 10000) > self.free_zombie_chance: return
+        if self.n_zombies == 2: 
+            z1 = Zombie(self.center_x + self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
+            z2 = Zombie(self.center_x - self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
+            self.alive = False
+            w.addZombie(z1); w.addZombie(z2)
+        elif self.n_zombies > 2:
+            self.n_zombies -= 1
+            spawn_point_x = randint(-int(floor(self.radius)*2), int(floor(self.radius)*2))
+            spawn_point_y = randint(-int(floor(self.radius)*2), int(floor(self.radius)*2))
+            zombie = Zombie(spawn_point_x, spawn_point_y, radius = 15, color = 'green', speed=0.5, dmg=1)
+            w.addZombie(zombie)
 
 class Wave():
     def __init__(self,level):
         self.zombies = set()
         for _ in range(level * 3):
-            x_start, y_start = randint(0, window.width), randint(0, window.height)
+            x_start, y_start = randint(815, window.width), randint(0, 304)
             zombie = Zombie(x_start,y_start, 15, 'green', .5, 1)
             self.zombies.add(zombie)
     def addZombie(self,zombie):
@@ -370,7 +386,7 @@ class Wave():
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(1)
+w = Wave(2)
 
 
 root.mainloop()
