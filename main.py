@@ -112,28 +112,44 @@ class EnemyHealthBar:
             self.ent.alive = False
             window.game.delete(self.shape)
 
+
 class PlayerHealthBar:
     def __init__(self, player):
         self.player = player
         self.hp_max = window.width
         self.hp = self.hp_max
-        self.shape = window.game.create_rectangle(0, 800, window.width, window.height, fill='red')
+        self.shape = window.game.create_rectangle(0, 800, window.width//2, window.height, fill='red')
     def update_pos(self, new_x):
         window.game.coords(self.shape, 0, 800, new_x, window.height)
     def draw(self):
         ratio = self.hp / self.hp_max
-        new_x = window.width * ratio
+        new_x = window.width//2 * ratio
         if new_x > 0:
             self.update_pos(new_x = new_x)
         else:
             self.player.alive = False
-        
+
+
+class PlayerAmmoBar:
+    def __init__(self, player):
+        self.player = player
+        self.weapon = self.player.weapon
+        self.shape = window.game.create_rectangle(window.width // 2, 800, window.width, window.height, fill='yellow')
+    def update_pos(self, new_x):
+        window.game.coords(self.shape, window.width // 2, 800, new_x, window.height)
+    def draw(self):
+        ratio = self.weapon.cur_ammo / self.weapon.max_ammo
+        new_x = window.width//2 + window.width//2 * ratio
+        self.update_pos(new_x = new_x)
+
 
 class Pistol:
     def __init__(self, ent):
         self.ent = ent
         self.width = 8
         self.length = 17
+        self.max_ammo = 17
+        self.cur_ammo = self.max_ammo
         self.dmg = 5
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius; self.ent_ld = self.ent.look_direction
         self.shape = window.game.create_rectangle(self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
@@ -158,6 +174,11 @@ class Pistol:
             window.game.coords(self.shape, self.ent_x + self.ent_r, self.ent_y + self.width/2, 
                                 self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2)
     def shoot(self):
+        if self.ent.reloading == True: return
+        if self.cur_ammo == 0: 
+            self.reload()
+            return
+        self.cur_ammo -= 1
         self.drawGunfire()
         for zombie in sorted(list(w.zombies), key=lambda x: x.distance(player)):
             if self.ent_ld == 'w':
@@ -190,13 +211,24 @@ class Pistol:
             self.gunfire_img = PhotoImage(file='./assets/images/rightfire.png')
             self.gunfire = window.game.create_image(self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2, image=self.gunfire_img, anchor='nw')
         root.after(30, window.game.delete, self.gunfire)
+    def reload(self):
+        if self.ent.reloading == True: return
+        self.ent.reloading = True
+        root.after(2000, self.finish_reload)
+    def finish_reload(self):
+        self.ent.reloading = False
+        self.cur_ammo = 17
+        self.ent.ammo_bar.draw()
+        return
 
 
 class Player(Node):
     def __init__(self, start_x, start_y, radius, color, speed):
         super().__init__(start_x,start_y,radius,color,speed)
         self.look_direction = 'w'
+        self.reloading = False
         self.weapon = Pistol(self)
+        self.ammo_bar = PlayerAmmoBar(self)
         self.key_presses = set()
         self.health = PlayerHealthBar(self)
         root.after(10, self.exist)
@@ -205,7 +237,10 @@ class Player(Node):
     def key_push(self,event): 
         if event.char == ' ' and self.alive == True:
             self.weapon.shoot()
+            self.ammo_bar.draw()
             return
+        if event.char == 'r' or event.char == 'R' and self.alive == True:
+            self.weapon.reload()
         self.key_presses.add(event.keysym.lower())
     def key_release(self,event): 
         if event.char == ' ': return
@@ -257,6 +292,7 @@ class Player(Node):
             if self.center_x + self.radius > x1 and self.center_x - self.radius < x2 and self.center_y - self.radius < y1 and self.center_y + self.radius > y2:
                 self.health.hp -= 0.01
 player = Player(start_x = window.width/2, start_y = window.height/2, radius = 15, color = 'bisque', speed = 1)
+
 
 class Enemy(Node):
     def __init__(self, start_x, start_y, radius, color, speed, dmg):
@@ -404,6 +440,7 @@ class Horde(Enemy):
             zombie = Zombie(spawn_point_x, spawn_point_y, radius = 15, color = 'green', speed=0.5, dmg=1)
             w.addZombie(zombie)
             w.addZombie(h)
+
 
 class Wave():
     def __init__(self,level):
