@@ -1,5 +1,5 @@
 from tkinter import Tk, Canvas, PhotoImage, Label
-from random import randint, random
+from random import randint
 from math import sqrt, floor
 
 
@@ -7,34 +7,36 @@ root = Tk()
 
 
 class Window:
-    def __init__(self,height,width):
+    # the default height and width corresponds to zombie_city map plus heads up display (HUD)
+    def __init__(self, height = 800 + 25, width = 1280):
         # window size
         self.height = height
         self.width = width
         # the top and left edges of the canvas have a boundary of 2, which prevents nodes from going off screen
         self.left_top_boundary = 2
         # canvas
-        self.game = Canvas(root, height=self.height, width=self.width)
+        self.game = Canvas(root, height=self.height, width=self.width, highlightthickness=0)
+        self.game.configure(bg='gray26')
         self.game.pack()
         # map image
         self.map = PhotoImage(file='./maps/zombie_city.png')
         self.game.create_image(0, 0, image=self.map, anchor='nw')
-        # map boundaries
-        self.boundaries = []
+        # load map data
+        # self.boundaries and self.danger_zones are lists containing tuples of x1, x2, y1, y2 of bounding boxes
+        # the player and enemies will be prevented from entering regions outlined by self.boundaries
+        self.boundaries = [] 
+        # the player will take damage when remaining in regions outlined by self.danger_zones
         self.danger_zones = []
+        # this loop reads from the given map's .dat file and fills self.boundaries and self.danger_zones with bounding box info
         with open('./maps/zombie_city.dat', "r") as file:
             for line in file:
-                # print(line)
                 obj_type, x1, y2, x2, y1 = line.rstrip().split(' ')
-                # top_left_corner = (x1, y2)
-                # top_right_corner = (x2, y2)
-                # bottom_left_corner = (x1, y1)
-                # bottom_right_corner = (x2, y1)
                 x1, x2, y1, y2 = int(x1), int(x2), int(y1), int(y2)
                 obj = (x1, x2, y1, y2)
                 if obj_type == 'boundary': self.boundaries.append(obj)
                 elif obj_type == 'danger_zone': self.danger_zones.append(obj)
-window = Window(800,1280)
+window = Window()
+
 
 class Node:
     def __init__(self, start_x, start_y, radius, color, speed):
@@ -50,14 +52,13 @@ class Node:
         self.center_x = start_x
         self.center_y = start_y
         # health
-        self.health = HealthBar(self)
         self.alive = True
         # tkinter shape initialization
         self.shape = window.game.create_oval(start_x-self.radius, start_y-self.radius,
                             start_x+self.radius, start_y+self.radius, fill=self.color)
         # x1,y1,x2,x2 positions
         self.x1, self.y1, self.x2, self.y2 = window.game.coords(self.shape)
-    def boundary_check(self): # adjusts center (x,y) when outside the window
+    def boundary_check(self): # adjusts center (x,y) when an node tries to move outside the window's boundaries
         if self.center_y - self.radius < window.left_top_boundary:
             self.center_y = window.left_top_boundary + self.radius
         elif self.center_y + self.radius > window.height:
@@ -72,7 +73,7 @@ class Node:
         self.x2 = self.center_x + self.radius
         self.y1 = self.center_y - self.radius
         self.y2 = self.center_y + self.radius
-    def draw(self): # calls update method / moves the shape / calls healthbar draw method
+    def draw(self): # calls update method / moves the shape / calls healthbar's draw method
         self.update()
         window.game.coords(self.shape, self.x1, self.y1, self.x2, self.y2)
         self.health.draw()
@@ -85,13 +86,14 @@ class Node:
                 return True
         return False
 
-class HealthBar:
+
+class EnemyHealthBar:
     def __init__(self, ent):
-        # the entity that the healthbar is associated with
+        # the node/entity that the healthbar is associated with
         self.ent = ent
         # name shortening for convienence
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius
-        # entity health stats
+        # entity health stats; the max health an entity has depends on its radius
         self.hp_max = self.ent_r * 3
         self.hp = self.hp_max
         # tkinter shape initialization
@@ -110,12 +112,29 @@ class HealthBar:
             self.ent.alive = False
             window.game.delete(self.shape)
 
+class PlayerHealthBar:
+    def __init__(self, player):
+        self.player = player
+        self.hp_max = window.width
+        self.hp = self.hp_max
+        self.shape = window.game.create_rectangle(0, 800, window.width, window.height, fill='red')
+    def update_pos(self, new_x):
+        window.game.coords(self.shape, 0, 800, new_x, window.height)
+    def draw(self):
+        ratio = self.hp / self.hp_max
+        new_x = window.width * ratio
+        if new_x > 0:
+            self.update_pos(new_x = new_x)
+        else:
+            self.player.alive = False
+        
+
 class Pistol:
     def __init__(self, ent):
         self.ent = ent
         self.width = 8
         self.length = 17
-        self.dmg = 7
+        self.dmg = 5
         self.ent_x = self.ent.center_x; self.ent_y = self.ent.center_y; self.ent_r = self.ent.radius; self.ent_ld = self.ent.look_direction
         self.shape = window.game.create_rectangle(self.ent_x - self.width/2, self.ent_y - self.ent_r - self.length, 
                                             self.ent_x + self.width/2, self.ent_y - self.ent_r, fill='silver')
@@ -170,7 +189,7 @@ class Pistol:
         elif self.ent_ld == 'd':
             self.gunfire_img = PhotoImage(file='./assets/images/rightfire.png')
             self.gunfire = window.game.create_image(self.ent_x + self.ent_r + self.length, self.ent_y - self.width/2, image=self.gunfire_img, anchor='nw')
-        root.after(10, window.game.delete, self.gunfire)
+        root.after(30, window.game.delete, self.gunfire)
 
 
 class Player(Node):
@@ -179,6 +198,7 @@ class Player(Node):
         self.look_direction = 'w'
         self.weapon = Pistol(self)
         self.key_presses = set()
+        self.health = PlayerHealthBar(self)
         root.after(10, self.exist)
         root.bind('<KeyPress>', self.key_push)
         root.bind('<KeyRelease>', self.key_release)
@@ -236,8 +256,7 @@ class Player(Node):
             x1, x2, y1, y2 = danger_zone
             if self.center_x + self.radius > x1 and self.center_x - self.radius < x2 and self.center_y - self.radius < y1 and self.center_y + self.radius > y2:
                 self.health.hp -= 0.01
-player = Player(window.width/2, window.height/2, 15, 'bisque', 1)
-
+player = Player(start_x = window.width/2, start_y = window.height/2, radius = 15, color = 'bisque', speed = 1)
 
 class Enemy(Node):
     def __init__(self, start_x, start_y, radius, color, speed, dmg):
@@ -245,13 +264,13 @@ class Enemy(Node):
         self.waypoint = None # (x,y) | None
         self.dmg = dmg
         self.weapon = False
+        self.health = EnemyHealthBar(self)
         root.after(10,self.exist)
     def exist(self):
-        if not self.alive: 
-            w.deleteZombie(self)
+        if not self.alive:
+            if self in w.zombies:
+                w.deleteZombie(self)
             return
-        else:
-            self.move()
     def move(self):
         original_pos = (self.center_x, self.center_y)
         if self.distance(player) <= 200 and player.alive:
@@ -303,7 +322,7 @@ class Zombie(Enemy):
     def __init__(self, start_x, start_y, radius, color, speed, dmg):
         super().__init__(start_x, start_y, radius, color, speed, dmg)
     def formHorde(self):
-        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
+        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)): # fix the filter
             if self.distance(zombie) <= self.radius and zombie != self and type(zombie) == Zombie and zombie.alive and self.alive:
                 self.alive = False; zombie.alive = False
                 start_x = (self.center_x + zombie.center_x) / 2
@@ -312,9 +331,11 @@ class Zombie(Enemy):
                 # create horde
                 h = Horde(start_x, start_y, radius, 'black', n_zombies=2)
                 w.addZombie(h)
-    def move(self):
-        super().move()
-        self.formHorde()
+    def exist(self):
+        super().exist()
+        if self.alive:
+            self.move()
+            self.formHorde()
 
 
 class Horde(Enemy):
@@ -330,23 +351,26 @@ class Horde(Enemy):
         self.label.place(x=self.center_x, y=self.center_y, anchor='center')
     def absorb(self): 
         for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
-            if self.distance(zombie) <= self.radius and type(zombie) == Zombie and zombie.alive == True:
+            if self.distance(zombie) <= self.radius and type(zombie) == Zombie and zombie.alive and self.alive:
                 if randint(0, 100) > self.absorb_chance: return
                 zombie.alive = False; self.alive = False
                 radius = (sqrt(self.n_zombies) * 15)
                 h = Horde(self.center_x, self.center_y, radius, 'black', n_zombies=self.n_zombies + 1)
                 w.addZombie(h)
-            elif self.distance(zombie) <= self.radius and type(zombie) == Horde and zombie != self:
+            elif self.distance(zombie) <= self.radius and type(zombie) == Horde and zombie != self and zombie.alive and self.alive:
                 if randint(0, 100) > self.absorb_chance: return
                 self.alive = False; zombie.alive = False
                 start_x = (self.center_x + zombie.center_x) / 2
                 start_y = (self.center_y + zombie.center_y) / 2
                 radius =   sqrt(self.n_zombies + zombie.n_zombies) * 15
                 h = Horde(start_x, start_y, radius, 'black', n_zombies=self.n_zombies + zombie.n_zombies)
-    def move(self):
-        super().move()
-        self.absorb()
-        self.free_zombie()
+                w.addZombie(h)
+    def exist(self):
+        super().exist()
+        if self.alive:
+            self.move()
+            self.absorb()
+            self.free_zombie()
     def update(self):
         super().update()
         try:
@@ -355,18 +379,31 @@ class Horde(Enemy):
             self.label.place(x=self.center_x, y=self.center_y, anchor='center')
         except: pass
     def free_zombie(self):
-        if randint(0, 10000) > self.free_zombie_chance: return
+        if randint(0, 1000) > self.free_zombie_chance: return
         if self.n_zombies == 2: 
             z1 = Zombie(self.center_x + self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
             z2 = Zombie(self.center_x - self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
             self.alive = False
             w.addZombie(z1); w.addZombie(z2)
         elif self.n_zombies > 2:
-            self.n_zombies -= 1
-            spawn_point_x = randint(-int(floor(self.radius)*2), int(floor(self.radius)*2))
-            spawn_point_y = randint(-int(floor(self.radius)*2), int(floor(self.radius)*2))
+            radius = (sqrt(self.n_zombies - 1) * 15)
+            h = Horde(self.center_x, self.center_y, radius, 'black', self.n_zombies - 1)
+            self.alive = False
+            spawn_point_x = None
+            spawn_point_y = None
+            x_choice = randint(1, 2)
+            y_choice = randint(1, 2)
+            spawn_point_x1 = randint(-int(floor(self.radius)*3), -int(floor(self.radius)*2))
+            spawn_point_x2 = randint(int(floor(self.radius*2)), int(floor(self.radius*3)))
+            spawn_point_y1 = randint(-int(floor(self.radius)*3), -int(floor(self.radius)*2))
+            spawn_point_y2 = randint(int(floor(self.radius*2)), int(floor(self.radius)*3))
+            if x_choice == 1: spawn_point_x = self.center_x + spawn_point_x1
+            elif x_choice == 2: spawn_point_x = self.center_x + spawn_point_x2
+            if y_choice == 1: spawn_point_y = self.center_y + spawn_point_y1
+            elif y_choice == 2: spawn_point_y = self.center_y + spawn_point_y2
             zombie = Zombie(spawn_point_x, spawn_point_y, radius = 15, color = 'green', speed=0.5, dmg=1)
             w.addZombie(zombie)
+            w.addZombie(h)
 
 class Wave():
     def __init__(self,level):
@@ -377,7 +414,7 @@ class Wave():
             self.zombies.add(zombie)
     def addZombie(self,zombie):
         self.zombies.add(zombie)
-    def deleteZombie(self,zombie):
+    def deleteZombie(self, zombie):
         try:
             zombie.label.destroy()
         except:
@@ -386,7 +423,7 @@ class Wave():
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(2)
+w = Wave(level = 3)
 
 
 root.mainloop()
