@@ -37,7 +37,6 @@ class Window:
                 elif obj_type == 'danger_zone': self.danger_zones.append(obj)
 window = Window()
 
-
 class Node:
     def __init__(self, start_x, start_y, radius, color, speed):
         # size
@@ -180,7 +179,7 @@ class Pistol:
             return
         self.cur_ammo -= 1
         self.drawGunfire()
-        for zombie in sorted(list(w.zombies), key=lambda x: x.distance(player)):
+        for zombie in sorted(list(main.wave.zombies), key=lambda x: x.distance(player)):
             if self.ent_ld == 'w':
                 if zombie.center_y < (self.ent_y - self.ent_r - self.length) and (zombie.center_x - zombie.radius) <= self.ent_x <= (zombie.center_x + zombie.radius):
                     zombie.health.hp -= self.dmg
@@ -290,7 +289,7 @@ class Player(Node):
         for danger_zone in window.danger_zones:
             x1, x2, y1, y2 = danger_zone
             if self.center_x + self.radius > x1 and self.center_x - self.radius < x2 and self.center_y - self.radius < y1 and self.center_y + self.radius > y2:
-                self.health.hp -= 0.01
+                self.health.hp -= 1
 player = Player(start_x = window.width/2, start_y = window.height/2, radius = 15, color = 'bisque', speed = 1)
 
 
@@ -304,8 +303,8 @@ class Enemy(Node):
         root.after(10,self.exist)
     def exist(self):
         if not self.alive:
-            if self in w.zombies:
-                w.deleteZombie(self)
+            if self in main.wave.zombies:
+                main.wave.deleteZombie(self)
             return
     def move(self):
         original_pos = (self.center_x, self.center_y)
@@ -358,7 +357,7 @@ class Zombie(Enemy):
     def __init__(self, start_x, start_y, radius, color, speed, dmg):
         super().__init__(start_x, start_y, radius, color, speed, dmg)
     def formHorde(self):
-        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)): # fix the filter
+        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, main.wave.zombies)): # fix the filter
             if self.distance(zombie) <= self.radius and zombie != self and type(zombie) == Zombie and zombie.alive and self.alive:
                 self.alive = False; zombie.alive = False
                 start_x = (self.center_x + zombie.center_x) / 2
@@ -366,7 +365,7 @@ class Zombie(Enemy):
                 radius = (sqrt(2) * 15)
                 # create horde
                 h = Horde(start_x, start_y, radius, 'black', n_zombies=2)
-                w.addZombie(h)
+                main.wave.addZombie(h)
     def exist(self):
         super().exist()
         if self.alive:
@@ -386,13 +385,13 @@ class Horde(Enemy):
         self.label = Label(root, text=f'{self.n_zombies}', background='black', foreground='white', font=('Arial', 15, 'bold'))
         self.label.place(x=self.center_x, y=self.center_y, anchor='center')
     def absorb(self): 
-        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, w.zombies)):
+        for zombie in list(filter(lambda x: self.distance(x) < self.radius * 2, main.wave.zombies)):
             if self.distance(zombie) <= self.radius and type(zombie) == Zombie and zombie.alive and self.alive:
                 if randint(0, 100) > self.absorb_chance: return
                 zombie.alive = False; self.alive = False
                 radius = (sqrt(self.n_zombies) * 15)
                 h = Horde(self.center_x, self.center_y, radius, 'black', n_zombies=self.n_zombies + 1)
-                w.addZombie(h)
+                main.wave.addZombie(h)
             elif self.distance(zombie) <= self.radius and type(zombie) == Horde and zombie != self and zombie.alive and self.alive:
                 if randint(0, 100) > self.absorb_chance: return
                 self.alive = False; zombie.alive = False
@@ -400,7 +399,7 @@ class Horde(Enemy):
                 start_y = (self.center_y + zombie.center_y) / 2
                 radius =   sqrt(self.n_zombies + zombie.n_zombies) * 15
                 h = Horde(start_x, start_y, radius, 'black', n_zombies=self.n_zombies + zombie.n_zombies)
-                w.addZombie(h)
+                main.wave.addZombie(h)
     def exist(self):
         super().exist()
         if self.alive:
@@ -420,7 +419,7 @@ class Horde(Enemy):
             z1 = Zombie(self.center_x + self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
             z2 = Zombie(self.center_x - self.radius, self.center_y, radius=15, color = 'green', speed=0.5, dmg=1)
             self.alive = False
-            w.addZombie(z1); w.addZombie(z2)
+            main.wave.addZombie(z1); main.wave.addZombie(z2)
         elif self.n_zombies > 2:
             radius = (sqrt(self.n_zombies - 1) * 15)
             h = Horde(self.center_x, self.center_y, radius, 'black', self.n_zombies - 1)
@@ -438,8 +437,8 @@ class Horde(Enemy):
             if y_choice == 1: spawn_point_y = self.center_y + spawn_point_y1
             elif y_choice == 2: spawn_point_y = self.center_y + spawn_point_y2
             zombie = Zombie(spawn_point_x, spawn_point_y, radius = 15, color = 'green', speed=0.5, dmg=1)
-            w.addZombie(zombie)
-            w.addZombie(h)
+            main.wave.addZombie(zombie)
+            main.wave.addZombie(h)
 
 
 class Wave():
@@ -460,7 +459,25 @@ class Wave():
             window.game.delete(zombie.shape)
             window.game.delete(zombie.health.shape)
             self.zombies.remove(zombie)
-w = Wave(level = 3)
+
+
+class Game():
+    def __init__(self):
+        self.wave_num = 1
+        self.wave = Wave(level = self.wave_num)
+        self.label = Label(root, text=f'Wave {self.wave_num}', background = 'gray26', foreground='white', font=('Times', 12, 'bold'))
+        self.label.place(x=window.width//2, y=780, anchor='center')
+        root.after(50, self.check)
+    def check(self):
+        if len(self.wave.zombies) == 0:
+            self.wave_num += 1
+            self.wave = Wave(level = self.wave_num)
+            self.label.destroy()
+            self.label = Label(root, text=f'Wave {self.wave_num}', background = 'gray26', foreground='white', font=('Times', 12, 'bold'))
+            self.label.place(x=window.width//2, y=780, anchor='center')
+        root.after(50, self.check)
+
+main = Game()
 
 
 root.mainloop()
